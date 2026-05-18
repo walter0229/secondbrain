@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import CryptoJS from 'crypto-js';
 
 const SECRET_KEY = 'SecondBrain_SuperSecretKey_2026';
