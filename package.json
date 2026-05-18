@@ -19,6 +19,7 @@
     "expo-av": "^16.0.8",
     "expo-device": "~8.0.10",
     "expo-file-system": "~19.0.22",
+    "expo-intent-launcher": "~13.0.8",
     "expo-local-authentication": "^55.0.14",
     "expo-notifications": "~0.32.17",
     "expo-speech": "~14.0.8",

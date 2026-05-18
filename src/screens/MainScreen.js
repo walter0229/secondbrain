@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { Platform } from 'react-native';
 import { processAudioWithGemini, processTextWithGemini } from '../utils/gemini';
 import { encryptText, decryptText } from '../utils/crypto';
 
@@ -103,17 +105,32 @@ export default function MainScreen() {
       
       const now = new Date().toISOString();
       const prompt = `이 음성을 정확하게 한국어 텍스트로 변환해줘. 
-단, 만약 사용자가 미래의 특정 시점에 알람이나 일정 알림을 요청하는 내용이라면 (예: 내일 아침 7시에 깨워줘, 1시간 뒤에 약 먹으라고 알려줘 등), 응답의 제일 마지막 줄에 반드시 'ALARM: YYYY-MM-DDTHH:mm:00|알람내용' 형식으로 덧붙여줘. 현재 시간은 ${now} 기준이야. 알람 요청이 아니라면 그냥 변환된 텍스트만 반환해.`;
+단, 만약 사용자가 미래의 특정 시점에 알림을 요청하는 내용이라면 분석해서 다음 규칙에 따라 응답의 제일 마지막 줄에 덧붙여줘. 현재 시간은 ${now} 기준이야.
+1. "N분 뒤", "N시간 뒤" 처럼 상대적인 시간인 경우 (타이머): 'TIMER: 초단위길이|알람내용' (예: 10분 뒤 약 먹어 -> TIMER: 600|약 먹을 시간)
+2. "내일 아침 7시", "목요일 3시" 처럼 절대적인 시간인 경우 (알람): 'ALARM: YYYY-MM-DDTHH:mm:00|알람내용'
+알람이나 타이머 요청이 아니라면 그냥 변환된 텍스트만 반환해.`;
       
       const transcript = await processAudioWithGemini(uri, prompt);
       
       if (transcript && !transcript.includes('오류')) {
         try {
           let finalText = transcript;
+          let timerSeconds = null;
           let alarmTime = null;
           let alarmBody = null;
 
-          if (transcript.includes('ALARM:')) {
+          if (transcript.includes('TIMER:')) {
+            const lines = transcript.split('\n');
+            const timerLine = lines.find(line => line.startsWith('TIMER:'));
+            if (timerLine) {
+              const parts = timerLine.replace('TIMER:', '').trim().split('|');
+              if (parts.length >= 2) {
+                timerSeconds = parseInt(parts[0], 10);
+                alarmBody = parts[1];
+              }
+              finalText = lines.filter(line => !line.startsWith('TIMER:')).join('\n').trim();
+            }
+          } else if (transcript.includes('ALARM:')) {
             const lines = transcript.split('\n');
             const alarmLine = lines.find(line => line.startsWith('ALARM:'));
             if (alarmLine) {
@@ -141,7 +158,7 @@ export default function MainScreen() {
               fields: {
                 text: { stringValue: encrypted },
                 timestamp: { stringValue: new Date().toISOString() },
-                hasAlarm: { booleanValue: !!alarmTime }
+                hasAlarm: { booleanValue: !!alarmTime || !!timerSeconds }
               }
             }),
             signal: controller.signal
@@ -153,18 +170,42 @@ export default function MainScreen() {
             throw new Error(`저장 실패 (${response.status})`);
           }
 
-          if (alarmTime && alarmTime > new Date()) {
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: "제 2의 뇌 🧠",
-                body: alarmBody,
-                sound: true,
-              },
-              trigger: alarmTime,
-            });
-            speak('기억을 저장하고 알람을 설정했습니다.');
+          if (Platform.OS === 'android') {
+            if (timerSeconds && timerSeconds > 0) {
+              await IntentLauncher.startActivityAsync('android.intent.action.SET_TIMER', {
+                extra: {
+                  'android.intent.extra.alarm.LENGTH': timerSeconds,
+                  'android.intent.extra.alarm.MESSAGE': alarmBody,
+                  'android.intent.extra.alarm.SKIP_UI': true,
+                },
+              });
+              speak('기억을 저장하고 타이머를 설정했습니다.');
+            } else if (alarmTime && alarmTime > new Date()) {
+              const hours = alarmTime.getHours();
+              const minutes = alarmTime.getMinutes();
+              await IntentLauncher.startActivityAsync('android.intent.action.SET_ALARM', {
+                extra: {
+                  'android.intent.extra.alarm.HOUR': hours,
+                  'android.intent.extra.alarm.MINUTES': minutes,
+                  'android.intent.extra.alarm.MESSAGE': alarmBody,
+                  'android.intent.extra.alarm.SKIP_UI': true,
+                },
+              });
+              speak('기억을 저장하고 시계 알람을 설정했습니다.');
+            } else {
+              speak('안전하게 암호화되어 저장되었습니다.');
+            }
           } else {
-            speak('안전하게 암호화되어 저장되었습니다.');
+            // iOS Fallback (Push notification)
+            if (alarmTime && alarmTime > new Date()) {
+              await Notifications.scheduleNotificationAsync({
+                content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
+                trigger: alarmTime,
+              });
+              speak('기억을 저장하고 알람을 설정했습니다.');
+            } else {
+              speak('안전하게 암호화되어 저장되었습니다.');
+            }
           }
         } catch (error) {
           Alert.alert('DB/암호화 에러', error.message);
