@@ -171,29 +171,48 @@ export default function MainScreen() {
           }
 
           if (Platform.OS === 'android') {
-            if (timerSeconds && timerSeconds > 0) {
-              await IntentLauncher.startActivityAsync('android.intent.action.SET_TIMER', {
-                extra: {
-                  'android.intent.extra.alarm.LENGTH': timerSeconds,
-                  'android.intent.extra.alarm.MESSAGE': alarmBody,
-                  'android.intent.extra.alarm.SKIP_UI': true,
-                },
-              });
-              speak('기억을 저장하고 타이머를 설정했습니다.');
-            } else if (alarmTime && alarmTime > new Date()) {
-              const hours = alarmTime.getHours();
-              const minutes = alarmTime.getMinutes();
-              await IntentLauncher.startActivityAsync('android.intent.action.SET_ALARM', {
-                extra: {
-                  'android.intent.extra.alarm.HOUR': hours,
-                  'android.intent.extra.alarm.MINUTES': minutes,
-                  'android.intent.extra.alarm.MESSAGE': alarmBody,
-                  'android.intent.extra.alarm.SKIP_UI': true,
-                },
-              });
-              speak('기억을 저장하고 시계 알람을 설정했습니다.');
-            } else {
-              speak('안전하게 암호화되어 저장되었습니다.');
+            try {
+              if (timerSeconds && timerSeconds > 0) {
+                await IntentLauncher.startActivityAsync('android.intent.action.SET_TIMER', {
+                  extra: {
+                    'android.intent.extra.alarm.LENGTH': timerSeconds,
+                    'android.intent.extra.alarm.MESSAGE': alarmBody,
+                    'android.intent.extra.alarm.SKIP_UI': true,
+                  },
+                });
+                speak('기억을 저장하고 타이머를 설정했습니다.');
+              } else if (alarmTime && alarmTime > new Date()) {
+                const hours = alarmTime.getHours();
+                const minutes = alarmTime.getMinutes();
+                await IntentLauncher.startActivityAsync('android.intent.action.SET_ALARM', {
+                  extra: {
+                    'android.intent.extra.alarm.HOUR': hours,
+                    'android.intent.extra.alarm.MINUTES': minutes,
+                    'android.intent.extra.alarm.MESSAGE': alarmBody,
+                    'android.intent.extra.alarm.SKIP_UI': true,
+                  },
+                });
+                speak('기억을 저장하고 시계 알람을 설정했습니다.');
+              } else {
+                speak('안전하게 암호화되어 저장되었습니다.');
+              }
+            } catch (intentError) {
+              console.log("Intent Error (Expo Go restriction):", intentError);
+              if (timerSeconds && timerSeconds > 0) {
+                await Notifications.scheduleNotificationAsync({
+                  content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
+                  trigger: { seconds: timerSeconds },
+                });
+                speak('앱 테스트 환경 제한으로 푸시 타이머로 대체되었습니다.');
+              } else if (alarmTime && alarmTime > new Date()) {
+                await Notifications.scheduleNotificationAsync({
+                  content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
+                  trigger: alarmTime,
+                });
+                speak('앱 테스트 환경 제한으로 푸시 알람으로 대체되었습니다.');
+              } else {
+                speak('안전하게 암호화되어 저장되었습니다.');
+              }
             }
           } else {
             // iOS Fallback (Push notification)
