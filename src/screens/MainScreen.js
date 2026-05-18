@@ -207,7 +207,7 @@ export default function MainScreen() {
               } else if (alarmTime && alarmTime > new Date()) {
                 await Notifications.scheduleNotificationAsync({
                   content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
-                  trigger: alarmTime,
+                  trigger: { date: alarmTime },
                 });
                 speak('앱 테스트 환경 제한으로 푸시 알람으로 대체되었습니다.');
               } else {
@@ -219,9 +219,15 @@ export default function MainScreen() {
             if (alarmTime && alarmTime > new Date()) {
               await Notifications.scheduleNotificationAsync({
                 content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
-                trigger: alarmTime,
+                trigger: { date: alarmTime },
               });
               speak('기억을 저장하고 알람을 설정했습니다.');
+            } else if (timerSeconds && timerSeconds > 0) {
+              await Notifications.scheduleNotificationAsync({
+                content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
+                trigger: { seconds: timerSeconds },
+              });
+              speak('기억을 저장하고 타이머를 설정했습니다.');
             } else {
               speak('안전하게 암호화되어 저장되었습니다.');
             }
