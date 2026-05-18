@@ -28,6 +28,14 @@ export default function MainScreen() {
     (async () => {
       await Audio.requestPermissionsAsync();
       await Notifications.requestPermissionsAsync();
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: '기본 알림',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
     })();
   }, []);
 
@@ -201,13 +209,14 @@ export default function MainScreen() {
               if (timerSeconds && timerSeconds > 0) {
                 await Notifications.scheduleNotificationAsync({
                   content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
-                  trigger: { seconds: timerSeconds },
+                  trigger: { seconds: timerSeconds, channelId: 'default' },
                 });
                 speak('앱 테스트 환경 제한으로 푸시 타이머로 대체되었습니다.');
               } else if (alarmTime && alarmTime > new Date()) {
+                const diffSeconds = Math.max(1, Math.floor((alarmTime.getTime() - Date.now()) / 1000));
                 await Notifications.scheduleNotificationAsync({
                   content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
-                  trigger: { date: alarmTime },
+                  trigger: { seconds: diffSeconds, channelId: 'default' },
                 });
                 speak('앱 테스트 환경 제한으로 푸시 알람으로 대체되었습니다.');
               } else {
@@ -217,9 +226,10 @@ export default function MainScreen() {
           } else {
             // iOS Fallback (Push notification)
             if (alarmTime && alarmTime > new Date()) {
+              const diffSeconds = Math.max(1, Math.floor((alarmTime.getTime() - Date.now()) / 1000));
               await Notifications.scheduleNotificationAsync({
                 content: { title: "제 2의 뇌 🧠", body: alarmBody, sound: true },
-                trigger: { date: alarmTime },
+                trigger: { seconds: diffSeconds },
               });
               speak('기억을 저장하고 알람을 설정했습니다.');
             } else if (timerSeconds && timerSeconds > 0) {
