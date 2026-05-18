@@ -2,8 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
+import * as Notifications from 'expo-notifications';
 import { processAudioWithGemini, processTextWithGemini } from '../utils/gemini';
 import { encryptText, decryptText } from '../utils/crypto';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 import { db, storage } from '../config/firebase';
 
 
@@ -16,6 +25,7 @@ export default function MainScreen() {
   useEffect(() => {
     (async () => {
       await Audio.requestPermissionsAsync();
+      await Notifications.requestPermissionsAsync();
     })();
   }, []);
 
@@ -90,11 +100,33 @@ export default function MainScreen() {
       setIsProcessing(true);
       const uri = await stopRecording();
       setStatusText('저장 중입니다...');
-      const transcript = await processAudioWithGemini(uri, "이 음성을 정확하게 한국어 텍스트로 변환해줘.");
+      
+      const now = new Date().toISOString();
+      const prompt = `이 음성을 정확하게 한국어 텍스트로 변환해줘. 
+단, 만약 사용자가 미래의 특정 시점에 알람이나 일정 알림을 요청하는 내용이라면 (예: 내일 아침 7시에 깨워줘, 1시간 뒤에 약 먹으라고 알려줘 등), 응답의 제일 마지막 줄에 반드시 'ALARM: YYYY-MM-DDTHH:mm:00|알람내용' 형식으로 덧붙여줘. 현재 시간은 ${now} 기준이야. 알람 요청이 아니라면 그냥 변환된 텍스트만 반환해.`;
+      
+      const transcript = await processAudioWithGemini(uri, prompt);
       
       if (transcript && !transcript.includes('오류')) {
         try {
-          const encrypted = encryptText(transcript);
+          let finalText = transcript;
+          let alarmTime = null;
+          let alarmBody = null;
+
+          if (transcript.includes('ALARM:')) {
+            const lines = transcript.split('\n');
+            const alarmLine = lines.find(line => line.startsWith('ALARM:'));
+            if (alarmLine) {
+              const parts = alarmLine.replace('ALARM:', '').trim().split('|');
+              if (parts.length >= 2) {
+                alarmTime = new Date(parts[0]);
+                alarmBody = parts[1];
+              }
+              finalText = lines.filter(line => !line.startsWith('ALARM:')).join('\n').trim();
+            }
+          }
+
+          const encrypted = encryptText(finalText);
           const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
           const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
           const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/memories?key=${apiKey}`;
@@ -108,7 +140,8 @@ export default function MainScreen() {
             body: JSON.stringify({
               fields: {
                 text: { stringValue: encrypted },
-                timestamp: { stringValue: new Date().toISOString() }
+                timestamp: { stringValue: new Date().toISOString() },
+                hasAlarm: { booleanValue: !!alarmTime }
               }
             }),
             signal: controller.signal
@@ -119,7 +152,20 @@ export default function MainScreen() {
           if (!response.ok) {
             throw new Error(`저장 실패 (${response.status})`);
           }
-          speak('안전하게 암호화되어 저장되었습니다.');
+
+          if (alarmTime && alarmTime > new Date()) {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: "제 2의 뇌 🧠",
+                body: alarmBody,
+                sound: true,
+              },
+              trigger: alarmTime,
+            });
+            speak('기억을 저장하고 알람을 설정했습니다.');
+          } else {
+            speak('안전하게 암호화되어 저장되었습니다.');
+          }
         } catch (error) {
           Alert.alert('DB/암호화 에러', error.message);
           speak('저장 중 심각한 오류가 발생했습니다.');
