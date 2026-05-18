@@ -96,7 +96,8 @@ export default function MainScreen() {
         try {
           const encrypted = encryptText(transcript);
           const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
-          const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/memories`;
+          const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+          const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/memories?key=${apiKey}`;
           
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -137,7 +138,8 @@ export default function MainScreen() {
       let allMemories = '저장된 메모가 없습니다.';
       try {
         const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
-        const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/memories`;
+        const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+        const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/memories?key=${apiKey}`;
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
