@@ -284,10 +284,43 @@ export default function MainScreen() {
         console.error('Fetch memories error:', error);
       }
 
-      const prompt = `나의 과거 메모 내용들입니다:\n${allMemories}\n\n위 메모를 바탕으로, 지금 들려주는 음성 질문에 대해 한국어로 짧고 명확하게 대답해줘.`;
-      const answer = await processAudioWithGemini(uri, prompt);
+      const prompt = `나의 과거 메모 내용들입니다:\n${allMemories}\n\n위 메모를 바탕으로, 지금 들려주는 음성 질문에 대해 한국어로 짧고 명확하게 대답해줘. 
+단, 사용자가 "이메일로 보내", "메일로 줘" 등 이메일 발송을 요청했다면, 모든 분석을 마친 후 답변의 가장 마지막 줄에 정확히 'ACTION_SEND_EMAIL' 이라고 덧붙여줘.`;
+      let answer = await processAudioWithGemini(uri, prompt);
       
-      speak(answer);
+      let shouldSendEmail = false;
+      if (answer.includes('ACTION_SEND_EMAIL')) {
+        shouldSendEmail = true;
+        answer = answer.replace('ACTION_SEND_EMAIL', '').trim();
+      }
+
+      if (shouldSendEmail) {
+         setStatusText('이메일을 발송 중입니다...');
+         try {
+           const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               service_id: process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID,
+               template_id: process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID,
+               user_id: process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY,
+               template_params: {
+                 message: answer
+               }
+             })
+           });
+           if (emailResponse.ok) {
+             speak('요청하신 내용을 이메일로 발송했습니다.');
+           } else {
+             speak('이메일 발송에 실패했습니다.');
+           }
+         } catch(e) {
+           speak('이메일 서버 연결에 실패했습니다.');
+         }
+      } else {
+         speak(answer);
+      }
+      
       setMode('IDLE');
       setStatusText('가운데 버튼을 눌러 시작하세요.');
       setIsProcessing(false);
