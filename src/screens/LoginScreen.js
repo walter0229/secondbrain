@@ -5,7 +5,7 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
 
   const handleLogin = () => {
-    if (password === 'msjhjy1162') {
+    if (password === 'msjhjy1361') {
       navigation.replace('MainScreen');
     } else {
       if (typeof window !== 'undefined' && window.alert) {
