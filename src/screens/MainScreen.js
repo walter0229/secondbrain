@@ -297,6 +297,12 @@ export default function MainScreen() {
       if (shouldSendEmail) {
          setStatusText('이메일을 발송 중입니다...');
          try {
+           console.log("Sending Email with keys:", {
+             service: process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID,
+             template: process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID,
+             user: process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY
+           });
+           
            const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -312,9 +318,14 @@ export default function MainScreen() {
            if (emailResponse.ok) {
              speak('요청하신 내용을 이메일로 발송했습니다.');
            } else {
-             speak('이메일 발송에 실패했습니다.');
+             const errText = await emailResponse.text();
+             console.log("EmailJS Error:", emailResponse.status, errText);
+             Alert.alert("EmailJS 발송 에러", `코드: ${emailResponse.status}\n이유: ${errText}`);
+             speak('이메일 발송에 실패했습니다. 화면의 에러를 확인해주세요.');
            }
          } catch(e) {
+           console.error("EmailJS Network Error:", e);
+           Alert.alert("네트워크 에러", e.message);
            speak('이메일 서버 연결에 실패했습니다.');
          }
       } else {
