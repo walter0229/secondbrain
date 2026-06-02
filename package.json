@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "predeploy": "npx expo export -p web",
-    "deploy": "gh-pages -d dist"
+    "deploy": "node -e \"require('fs').writeFileSync('dist/.nojekyll', '')\" && gh-pages -d dist -t true"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
